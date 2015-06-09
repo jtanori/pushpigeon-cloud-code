@@ -149,7 +149,7 @@ var sendEmail=function(userName,email,templateName,dynamicContent,subject){
 	return promise;
 };
 
-var sendContactMessage = function(name, email, phone, message){
+exports.sendContactMessage = function(name, email, phone, message){
 	var promise = new Parse.Promise();
 
 	Parse.Config
@@ -175,7 +175,7 @@ var sendContactMessage = function(name, email, phone, message){
                     headers: {
                         'Reply-To': email
                     }
-                }
+                },
                 async: true
             },{
                 success: function(httpResponse) {
