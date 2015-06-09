@@ -156,16 +156,14 @@ exports.sendContactMessage = function(name, email, phone, message){
         .get()
         .then(function(config) {
             var e = config.get("contactEmail");
-            var messageHTML = _.template('<h1>From: ' + name + ' ( ' + email + ')</h1>\n<h2>Phone Number: ' + phone + '</h2>\n<p>' + message + '</p>');
-            var messageText = _.template('From: ' + name + ' ( ' + email + ')\n\nPhone Number: ' + phone + '\n\n' + message);
 
             Mandrill.sendEmail({
                 message: {
                     subject: "New contact message in PushPigeon",
                     from_email: 'no-reply@pushpigeon.com',
                     from_name: 'PushPigeon Contact',
-                    html: messageHTML,
-                    text: messageText,
+                    html: '<h1>From: ' + name + ' ( ' + email + ')</h1>\n<h2>Phone Number: ' + phone + '</h2>\n<p>' + message + '</p>',
+                    text: 'From: ' + name + ' ( ' + email + ')\n\nPhone Number: ' + phone + '\n\n' + message,
                     to: [
                         {
                             email: e,

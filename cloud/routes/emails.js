@@ -112,7 +112,7 @@ Parse.Cloud.define("emailAdminCreated", function(request, response) {
 	
 });
 
-Parse.Cloud.define('contactMessage', function(request){
+Parse.Cloud.define('contactMessage', function(request, response){
 	if(request.params){
 
 		var name = request.params.name;
