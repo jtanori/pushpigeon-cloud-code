@@ -159,7 +159,7 @@ exports.sendContactMessage = function(name, email, phone, message){
             var messageHTML = _.template('<h1>From: ' + name + ' ( ' + email + ')</h1>\n<h2>Phone Number: ' + phone + '</h2>\n<p>' + message + '</p>');
             var messageText = _.template('From: ' + name + ' ( ' + email + ')\n\nPhone Number: ' + phone + '\n\n' + message);
 
-            Mandrill.send({
+            Mandrill.sendEmail({
                 message: {
                     subject: "New contact message in PushPigeon",
                     from_email: 'no-reply@pushpigeon.com',
