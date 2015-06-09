@@ -1,0 +1,15 @@
+{
+  "global": {
+    "parseVersion": "1.4.2"
+  },
+  "applications": {
+    "_default": {
+      "link": "pushpigeon"
+    },
+    "pushpigeon": {
+      "applicationId": "4Wq91UfyUxn9DiQ93KNqM8fI86WijyMEYilZT5XB",
+      "javascriptKey": "GN7wDUPelJY8NUHDHw4LWwPxFl4KRojlpbSXsSmk",
+      "masterKey": "VVgrgdszC7Ufs3spv4WV8uKGCnWVWEp6MLvnfWk0"
+    }
+  }
+}
