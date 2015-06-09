@@ -162,8 +162,8 @@ exports.sendContactMessage = function(name, email, phone, message){
                     subject: "New contact message in PushPigeon",
                     from_email: 'no-reply@pushpigeon.com',
                     from_name: 'PushPigeon Contact',
-                    html: '<h1>From: ' + name + ' ( ' + email + ')</h1>\n<h2>Phone Number: ' + phone + '</h2>\n<p>' + message + '</p>',
-                    text: 'From: ' + name + ' ( ' + email + ')\n\nPhone Number: ' + phone + '\n\n' + message,
+                    html: '<h4>From: ' + name + ' ( ' + email + ')</h4><h4>Phone Number: ' + phone + '</h4><h4>Message:</h4><p>' + message + '</p>',
+                    text: 'From: ' + name + ' ( ' + email + ')\n\nPhone Number: ' + phone + '\n\n Message: ' + message,
                     to: [
                         {
                             email: e,
