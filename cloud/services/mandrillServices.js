@@ -192,3 +192,41 @@ exports.sendContactMessage = function(name, email, phone, message){
 	
 	return promise;
 };
+
+exports.sendVerificationCode = function(email, code, template){
+  var promise = new Parse.Promise();
+
+  template = template || 'VerificationCode';//Default template
+
+  Mandrill.sendTemplate({
+      message: {
+          to: [
+              {
+                  email: email
+              }
+          ],
+          headers: {
+            'Reply-To': 'support@pushpigeon.com'
+          }
+      },
+      template_name: template,
+      template_content: [
+          {
+            name: 'verificationCode',
+            content: code
+          }
+      ],
+      async: true
+  },{
+      success: function(httpResponse) {
+          console.log(httpResponse);
+          promise.resolve(httpResponse)
+      },
+      error: function(httpResponse) {
+          console.error(httpResponse);
+          promise.reject(httpResponse);
+      }
+  });
+  
+  return promise;
+}
