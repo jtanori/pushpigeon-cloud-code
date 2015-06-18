@@ -1,7 +1,7 @@
 var moment = require('moment');
 var _ = require('underscore');
 var mandrilServices = require("cloud/services/mandrillServices.js");
-var validations = require('validations');
+var validations = require('cloud/validations.js');
 
 require('cloud/routes/emails.js');
 
@@ -50,38 +50,22 @@ Parse.Cloud.afterSave('VerificationCode', function(req){
 		user.fetch()
 			.then(function(){
 				var email = user.get('email');
-				var query = new Parse.Query('VerificationCode');
+				var code = o.get('AccessCode');
+				var template = o.get('type');
 
-				switch(isAdmin){
-				case true:
-					query.equalTo('Admin', user);
-					break;
-				default: query.equalTo('User', user);
+				switch(template){
+					case 'forgotPassword': template = 'ForgotPassword'; break;
+					default: template = 'VerificationCode';
 				}
 
-				//Gets the first non-validated code
-				query
-					.first()
-					.then(function(c){
-						var code = c.get('AccessCode');
-						var template = c.get('type');
-
-						switch(template){
-							case 'forgotPassword': template = 'ForgotPassword'; break;
-							default: template = 'VerificationCode';
-						}
-
-						mandrilServices.sendVerificationCode(email, code, template)
-					   	.then(function(result){
-					   		console.log('VerificationCode : (' + c.id + ')' + code + ' sent to: ' + email);
-						},function(error){
-						   	console.log('VerificationCode : (' + c.id + ')' + code + ' could not be sent to: ' + email);
-						   	console.log(error);
-						});
-					})
-					.fail(function(e){
-						console.log(e);
-					})
+				mandrilServices
+					.sendVerificationCode(email, code, template)
+				   	.then(function(result){
+				   		console.log('VerificationCode : (' + c.id + ')' + code + ' sent to: ' + email);
+					},function(error){
+					   	console.log('VerificationCode : (' + c.id + ')' + code + ' could not be sent to: ' + email);
+					   	console.log(error);
+					});
 			})
 			.fail(function(){
 
@@ -139,23 +123,21 @@ Parse.Cloud.define('forgotPassword', function(request, response){
 		// Determine if forgotPassword has been requested by
 		// a self-proclaimed GroupAdmin or regular User 
 		if(isAdmin){
-			query = new Parse.Query('GroupUser');
+			query = new Parse.Query('GroupAdmin');
 		}else{
-			query = new Parse.Query('_User');
+			query = new Parse.Query(Parse.User);
 		}
 
-		Parse.Cloud.useMasterKey();
 		//Find user
 		query
 			.select('email')
-			.equalTo('authProvider', 'password')
 			.equalTo('email', email)
-			.first()
+			.first({userMasterKey: true})
 			.then(function(u){
 				if(!_.isEmpty(u)){
 					var code = new (Parse.Object.extend('VerificationCode'))();
 					var data = {AccessCode: _.random(1000, 9999), type: 'forgotPassword'};
-					
+
 					if(isAdmin){
 						data.Admin = u;
 					} else {
@@ -165,22 +147,24 @@ Parse.Cloud.define('forgotPassword', function(request, response){
 					code
 						.save(data)
 						.then(function(){
-							console.log('ForgotPassword VerificationCode saved for user: ' + req.user.id + ' (admin: ' + isAdmin + ')');
+							console.log('ForgotPassword VerificationCode saved for user: ' + u.id + ' (admin: ' + isAdmin + ')');
 							response.success('Code sent to user');
 						})
 						.fail(function(e){
-							console.log('ForgotPassword VerificationCode could not be saved for user: ' + req.user.id+ ' (admin: ' + isAdmin + ')');
+							console.log('ForgotPassword VerificationCode could not be saved for user: ' + u.id+ ' (admin: ' + isAdmin + ')');
 							console.log(e);
 							response.error('Could not save VerificationCode');
 						});
 				}else{
-					response.error('User is not valid');
+					console.log(u);
+					console.log('forgotPassword: User not found: ' + email + ' (admin: ' + isAdmin + ')');
+					response.error('User not found');
 				}
 			})
 			.fail(function(e){
-				console.log('forgotPassword: User not found')
+				console.log('forgotPassword: Error requesting user')
 				console.log(e);
-				response.error('User not found');
+				response.error('Error requesting user');
 			});
 	}else{
 		response.error("Invalid input");
