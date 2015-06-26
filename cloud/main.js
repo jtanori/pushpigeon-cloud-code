@@ -4,22 +4,23 @@ var mandrilServices = require("cloud/services/mandrillServices.js");
 var validations = require('cloud/validations.js');
 
 require('cloud/routes/emails.js');
+require('cloud/routes/notifications.js');
 
 Parse.Cloud.afterSave(Parse.User, function(req){
-	if(req.user.existed()){
+	if(req.object.existed()){
 		return;
 	}
 
-	var data = {AccessCode: _.random(1000, 9999), User: req.user, active: true, validated: false};
+	var data = {AccessCode: _.random(1000, 9999), User: req.object, active: true, validated: false};
 	var code = new (Parse.Object.extend('VerificationCode'))();
 
 	code
 		.save(data)
 		.then(function(){
-			console.log('VerificationCode saved for user: ' + req.user.id);
+			console.log('VerificationCode saved for user: ' + req.object.id);
 		})
 		.fail(function(){
-			console.log('VerificationCode could not be saved for user: ' + req.user.id);
+			console.log('VerificationCode could not be saved for user: ' + req.object.id);
 		});
 });
 
@@ -75,6 +76,7 @@ Parse.Cloud.afterSave('VerificationCode', function(request){
 				mandrilServices
 					.sendVerificationCode(email, code, template)
 				   	.then(function(result){
+				   		console.log(result);
 				   		console.log('VerificationCode : (' + o.id + ')' + code + ' sent to: ' + email);
 					},function(error){
 					   	console.log('VerificationCode : (' + o.id + ')' + code + ' could not be sent to: ' + email);
@@ -130,7 +132,7 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 						.save({'validated': true, active: false})
 						.then(function(){
 							Parse.Cloud.useMasterKey();
-							
+
 							user
 								.save({verified: true})
 								.then(function(){
@@ -228,8 +230,10 @@ Parse.Cloud.define('resetPassword', function(request, response){
 				var u = c.get('Admin') ? c.get('Admin') : c.get('User');
 
 				if(!_.isEmpty(u)){
+					Parse.Cloud.useMasterKey();
+
 					u
-						.save({password: request.params.newPassword}, {userMasterKey: true})
+						.save({password: request.params.newPassword})
 						.then(function(){
 							response.success('Password updated');
 						})
@@ -244,6 +248,51 @@ Parse.Cloud.define('resetPassword', function(request, response){
 				response.error('VerificationCode not found');
 			});
 
+	}else{
+		response.error('Invalid input');
+	}
+});
+
+Parse.Cloud.define('requestVerification', function(request, response){
+	if(request.params && !_.isEmpty(request.params.email) && validations.EMAIL.test(request.params.email)){
+		var data = {AccessCode: _.random(1000, 9999), active: true, validated: false};
+		var code = new (Parse.Object.extend('VerificationCode'))();
+		var query, isAdmin = false;
+
+		switch(request.params.userType){
+		case 'groupAdmin': isAdmin= true; query = new Parse.Query('GroupAdmin'); break;
+		default: query = new Parse.Query(Parse.User);
+		}
+
+		query
+			.equalTo('email', request.params.email)
+			.notEqualTo('validated', true)
+			.first()
+			.then(function(u){
+				if(!_.isEmpty(u)){
+					if(isAdmin){
+						data.Admin = u;
+					}else{
+						data.User = u;
+					}
+					
+					code
+						.save(data)
+						.then(function(){
+							console.log('VerificationCode saved for user: ' + u.id + ' (admin: ' + isAdmin + ')');
+							response.success('VerificationCode saved');
+						})
+						.fail(function(){
+							console.log('VerificationCode could not be saved for user: ' + u.id + ' (admin: ' + isAdmin + ')');
+							response.error('Could not save verificationCode');
+						});
+				}else{
+					response.error('User can not be validated');
+				}
+			})
+			.fail(function(e){
+				response.error(e);
+			});
 	}else{
 		response.error('Invalid input');
 	}
