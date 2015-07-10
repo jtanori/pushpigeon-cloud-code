@@ -1,6 +1,6 @@
 var moment = require('moment');
 var _ = require('underscore');
-var mandrilServices = require("cloud/services/mandrillServices.js");
+var mandrillServices = require("cloud/services/mandrillServices.js");
 var validations = require('cloud/validations.js');
 
 require('cloud/routes/emails.js');
@@ -29,17 +29,80 @@ Parse.Cloud.afterSave('GroupAdmin', function(req){
 		return;
 	}
 
+	var Group = Parse.Object.extend('Group');
+	var groupQuery = new Parse.Query(Group);
+
+	groupQuery.get(req.object.get('group').id, {
+		success: function(g){
+			if(g.get('isNew')){
+				var GroupCategory = Parse.Object.extend("GroupCategory");
+				var GroupAdmin = Parse.Object.extend('GroupAdmin');
+
+				var all = new GroupCategory({category_name: 'All Members', isActive: true, group: g, modified_by_admin: req.object, created_by_admin: req.object});
+				var everyone = new GroupCategory({category_name: 'Everyone', isActive: true, group: g, modified_by_admin: req.object, created_by_admin: req.object});
+				var staff = new GroupCategory({category_name: 'All Staff', isActive: true, group: g, modified_by_admin: req.object, created_by_admin: req.object});
+
+				Parse.Object.saveAll([all, everyone, staff], {
+					success: function(){
+						console.log('All categories saved for new group');
+						console.log(req.object.id);
+					},
+					error: function(){
+						console.log('Coudld not save categories for group');
+						console.log(req.object.id);
+						console.log(e);
+					}
+				});
+			}
+
+			g.save('isNew', false);
+		}
+	});
+
 	var data = {AccessCode: _.random(1000, 9999), Admin: req.object, active: true, validated: false};
 	var code = new (Parse.Object.extend('VerificationCode'))();
 
 	code
 		.save(data)
 		.then(function(){
-			console.log('VerificationCode saved for GroupAdmin: ' + req.user.id);
+			console.log('VerificationCode saved for GroupAdmin: ' + req.object.id);
 		})
 		.fail(function(){
-			console.log('VerificationCode could not be saved for GroupAdmin: ' + req.user.id);
+			console.log('VerificationCode could not be saved for GroupAdmin: ' + req.object.id);
 		});
+});
+
+Parse.Cloud.afterSave('Group', function(request){
+	if(request.object.existed() && request.object.get('lastModificationType') === 'update'){
+		var username = request.object.get('firstname');
+		var email = request.object.get('email');
+		var templateVars = [{
+	        "name": "username",
+	        "content": username
+	    }];
+
+		mandrillServices
+			.sendEmail(username, email, 'AccountUpdated', templateVars, 'Your account has been updated.')
+			.then(function(){
+				console.log('AccountUpdated email sent for Group: ' + request.object.id);
+			})
+			.fail(function(e){
+				console.log('AccountUpdated email not sent for Group: ' + request.object.id);
+				console.log(e);
+			});
+
+		request.object.save('lastModificationType', '');
+	}
+});
+
+Parse.Cloud.beforeSave('Group', function(request, response){
+	if(!request.object.existed()){
+		request.object.set('isNew', true);	
+	}else{
+		request.object.set('isNew', false);
+	}
+
+	response.success();
 });
 
 Parse.Cloud.beforeSave('GroupAdmin', function(request, response){
@@ -73,7 +136,7 @@ Parse.Cloud.afterSave('VerificationCode', function(request){
 					default: template = 'VerificationCode';
 				}
 
-				mandrilServices
+				mandrillServices
 					.sendVerificationCode(email, code, template)
 				   	.then(function(result){
 				   		console.log(result);
@@ -115,11 +178,16 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 			.first()
 			.then(function(c){
 				var isValid = false;
+				var isAdmin = false;
+				var isForgot = false;
 				var user;
 
 				if(!_.isEmpty(c)){
+					isForgot = c.get('type') === 'forgotPassword' ? true : false;
+
 					if(c.get('Admin')){
 						isValid = c.get('Admin').get('email') === email;
+						isAdmin = true;
 						user = c.get('Admin');
 					}else if(c.get('User')){
 						isValid = c.get('User').get('email') === email;
@@ -136,10 +204,76 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 							user
 								.save({verified: true})
 								.then(function(){
-									response.success({status: 'success', verificationCode: {id: c.id, verified: true}});
+									var email = user.get('email');
+									var username;
+									var templateVars = [];
+									var template = user.get('initial') ? 'GroupWelcome' : 'Welcome';
+									var Member = Parse.Object.extend('Member');
+									var memberQuery = new Parse.Query(Member);
+
+									if(!isAdmin){
+										memberQuery
+											.equalTo('user_id', user)
+											.first()
+											.then(function(m){
+												if(!_.isEmpty(m)){
+													username = m.get('member_first_name');
+													templateVars.push({
+												        "name": "username",
+												        "content": username
+												    });
+
+												    if(!isForgot){
+													    mandrillServices
+															.sendEmail(username, email, template, templateVars, 'Welcome to Push Pigeon')
+															.then(function(){
+																console.log('Wecome email sent for User: ' + user.id);
+																response.success({status: 'success', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+															})
+															.fail(function(e){
+																console.log('Welcome email not sent for User: ' + user.id);
+																console.log(e);
+																response.success({status: 'success', message: 'Email could not be sent to user', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+															});
+												    } else {
+												    	response.success({status: 'success', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+												    }
+												}else{
+													response.success({status: 'success', message: 'Email could not be sent to user, member not found', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+												}
+											})
+											.fail(function(){
+												response.success({status: 'success', message: 'Email could not be sent to user, failure at finding member', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+											});
+									}else{
+										username = user.get('firstname');
+										templateVars.push({
+									        "name": "username",
+									        "content": username
+									    });
+
+									    //Set initial flag as false
+									    user.save('initial', false);
+
+										if(!isForgot){
+											mandrillServices
+												.sendEmail(username, email, template, templateVars, 'Welcome to Push Pigeon')
+												.then(function(){
+													console.log('Wecome email sent for User: ' + user.id);
+													response.success({status: 'success', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+												})
+												.fail(function(e){
+													console.log('Welcome email not sent for User: ' + user.id);
+													console.log(e);
+													response.success({status: 'success', message: 'Email could not be sent to user', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+												});
+										} else {
+											response.success({status: 'success', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
+										}
+									}
 								})
 								.fail(function(e){
-									console.log('Could not save user verified status');
+									console.log('Could not save user verified status, attempt to send email was halted.');
 									console.log(e);
 									response.error(e);
 								});
@@ -148,7 +282,7 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 							response.error('Could not validate code');
 						})
 				}else{
-					response.error('Invalid access code');
+					response.error('No verification code pending found for that email address, it can be that you have already validated that account or that the account does not exists.');
 				}
 			})
 			.fail(function(){
@@ -266,7 +400,7 @@ Parse.Cloud.define('requestVerification', function(request, response){
 
 		query
 			.equalTo('email', request.params.email)
-			.notEqualTo('validated', true)
+			.notEqualTo('verified', true)
 			.first()
 			.then(function(u){
 				if(!_.isEmpty(u)){
@@ -287,11 +421,88 @@ Parse.Cloud.define('requestVerification', function(request, response){
 							response.error('Could not save verificationCode');
 						});
 				}else{
-					response.error('User can not be validated');
+					response.error('Looks like that email address has already been validated or it is not a valid Push Pigeon group admin.');
 				}
 			})
 			.fail(function(e){
 				response.error(e);
+			});
+	}else{
+		response.error('Invalid input');
+	}
+});
+
+Parse.Cloud.define('sendInvitationEmail', function(request, response){
+	if(request.params && request.params.id){
+		var GroupMemberLink = Parse.Object.extend('GroupMemberLink');
+		var linkQuery = new Parse.Query(GroupMemberLink);
+		var groupname, membername, username, email, templateVars = [];
+
+		linkQuery
+			.include('group')
+			.include('member')
+			.get(request.params.id)
+			.then(function(l){
+				username = l.get('member').get('member_first_name');
+				groupname = l.get('group').get('group_name');
+				membername = l.get('group').get('firstname') + ' ' + l.get('group').get('lastname');
+				email = l.get('member').get('member_email');
+
+				templateVars.push({name: 'username', content: username});
+				templateVars.push({name: 'membername', content: membername});
+	    		templateVars.push({name: 'groupname', content: groupname});
+
+				mandrillServices
+					.sendEmail(username, email, 'MemberInvited', templateVars, username + ' had added you to ' + groupname + ' on Push Pigeon')
+					.then(function(){
+						console.log('MemberInvited email sent for GroupMemberLink: ' + request.params.id);
+						response.success('success');
+					})
+					.fail(function(e){
+						console.log('MemberInvited email not sent for GroupMemberLink: ' + request.params.id);
+						console.log(e);
+						responser.error(e);
+					});
+			})
+			.fail(function(e){
+				console.log(e);
+				responser.error('Could not find GroupMemberLink: ' + request.params.id);
+			});
+	}else{
+		response.error('Invalid input');
+	}
+});
+
+Parse.Cloud.define('sendNewAdminAddedEmail', function(request, response){
+	if(request.params && request.params.to && request.params.memberName && request.params.groupName && request.params.adminName){
+		var templateVars = [];
+
+		templateVars.push({name: 'username', content: request.params.adminName});
+		templateVars.push({name: 'membername', content: request.params.memberName});
+		templateVars.push({name: 'groupname', content: request.params.groupName});
+		//TODO: Fix this one, multiple recipients should be in a single call
+		mandrillServices
+			.sendEmail(request.params.adminName, request.params.to, 'AdminCreated', templateVars, request.params.adminName + ' has added you to ' + request.params.membrName + ' on Push Pigeon')
+			.then(function(){
+				console.log('AdminCreated email sent to: ' + request.params.to);
+				response.success('success');
+			})
+			.fail(function(e){
+				console.log('AdminCreated email not sent to: ' + request.params.to);
+				console.log(e);
+				responser.error(e);
+			});
+
+		mandrillServices
+			.sendEmail(request.params.adminName, request.params.memberEmail, 'AdminCreated', templateVars, request.params.adminName + ' has added you to ' + request.params.membrName + ' on Push Pigeon')
+			.then(function(){
+				console.log('AdminCreated email sent to: ' + request.params.to);
+				response.success('success');
+			})
+			.fail(function(e){
+				console.log('AdminCreated email not sent to: ' + request.params.to);
+				console.log(e);
+				responser.error(e);
 			});
 	}else{
 		response.error('Invalid input');

@@ -3,156 +3,156 @@ var _ = require('underscore');
 
 Mandrill.initialize("6xcQtzv5ZIhr3bZ_F8tbiw");
 
-exports.emailAccountCreated = function(username,email) {
-	var promise = new Parse.Promise();
+exports.emailAccountCreated = function(username, email) {
+    var promise = new Parse.Promise();
 
-	var dynamicContent=[{
-      "name": "username",
-      "content": username
-    }];	
+    var dynamicContent = [{
+        "name": "username",
+        "content": username
+    }];
 
-	sendEmail(username,email,"AccountCreated",dynamicContent,"Account Created")
-	.then(function(result){                                    
-	   promise.resolve(result);	 
-	},function(error){
-	   promise.reject(error);
-	});
+    sendEmail(username, email, "AccountCreated", dynamicContent, "Account Created")
+        .then(function(result) {
+            promise.resolve(result);
+        }, function(error) {
+            promise.reject(error);
+        });
 
-	return promise;
+    return promise;
 };
 
-exports.emailAccountUpdated = function(username,email) {
-	var promise = new Parse.Promise();
+exports.emailAccountUpdated = function(username, email) {
+    var promise = new Parse.Promise();
 
-	var dynamicContent=[{
-      "name": "username",
-      "content": username
-    }];	
+    var dynamicContent = [{
+        "name": "username",
+        "content": username
+    }];
 
-	sendEmail(username,email,"AccountUpdated",dynamicContent,"Account Updated")
-	.then(function(result){                                    
-	   promise.resolve(result);	 
-	},function(error){
-	   promise.reject(error);
-	});
+    sendEmail(username, email, "AccountUpdated", dynamicContent, "Account Updated")
+        .then(function(result) {
+            promise.resolve(result);
+        }, function(error) {
+            promise.reject(error);
+        });
 
-	return promise;
+    return promise;
 };
 
 
-exports.emailUserInvited = function(username,email,userType) {
-	var promise = new Parse.Promise();
+exports.emailUserInvited = function(username, email, userType) {
+    var promise = new Parse.Promise();
 
-	var dynamicContent=[{
-      "name": "username",
-      "content": username
-    }];	
+    var dynamicContent = [{
+        "name": "username",
+        "content": username
+    }];
 
     var templateName;
-    if(userType=="member"){
-    	templateName="MemberInvited";
-    }else if(userType=="staff"){
-    	templateName="StaffInvited";
+    if (userType == "member") {
+        templateName = "MemberInvited";
+    } else if (userType == "staff") {
+        templateName = "StaffInvited";
     }
-    
-	sendEmail(username,email,templateName,dynamicContent,"Invited")
-	.then(function(result){                                    
-	   promise.resolve(result);	 
-	},function(error){
-	   promise.reject(error);
-	});
 
-	return promise;
+    sendEmail(username, email, templateName, dynamicContent, "Invited")
+        .then(function(result) {
+            promise.resolve(result);
+        }, function(error) {
+            promise.reject(error);
+        });
+
+    return promise;
 };
 
-exports.emailUserApproved = function(username,email,userType) {
-	var promise = new Parse.Promise();
+exports.emailUserApproved = function(username, email, userType, groupName) {
+    var promise = new Parse.Promise();
 
-	var dynamicContent=[{
-      "name": "username",
-      "content": username
-    }];	
+    var dynamicContent = [{
+        "name": "username",
+        "content": username
+    }, {
+        name: 'groupname',
+        content: groupName
+    }];
 
     var templateName;
-    if(userType=="member"){
-    	templateName="MemberApproved";
+    if (userType == "member") {
+        templateName = "MemberApproved";
     }
-    
-	sendEmail(username,email,templateName,dynamicContent,"Approved")
-	.then(function(result){                                    
-	   promise.resolve(result);	 
-	},function(error){
-	   promise.reject(error);
-	});
 
-	return promise;
+    sendEmail(username, email, templateName, dynamicContent, "Group membership approved")
+        .then(function(result) {
+            promise.resolve(result);
+        }, function(error) {
+            promise.reject(error);
+        });
+
+    return promise;
 };
 
-exports.emailAdminCreated = function(username,email) {
-	var promise = new Parse.Promise();
+exports.emailAdminCreated = function(username, email) {
+    var promise = new Parse.Promise();
 
-	var dynamicContent=[{
-      "name": "username",
-      "content": username
-    }];	
+    var dynamicContent = [{
+        "name": "username",
+        "content": username
+    }];
 
-	sendEmail(username,email,"AdminCreated",dynamicContent,"Joined Successfully")
-	.then(function(result){                                    
-	   promise.resolve(result);	 
-	},function(error){
-	   promise.reject(error);
-	});
+    sendEmail(username, email, "AdminCreated", dynamicContent, "Joined Successfully")
+        .then(function(result) {
+            promise.resolve(result);
+        }, function(error) {
+            promise.reject(error);
+        });
 
-	return promise;
+    return promise;
 };
 
-var sendEmail=function(userName,email,templateName,dynamicContent,subject){
+var sendEmail = function(userName, email, templateName, dynamicContent, subject) {
 
-	var promise = new Parse.Promise();
+    var promise = new Parse.Promise();
 
     var message = {
-        "to": [{
-              "email":email,
-              "name": userName,
-              "type": "to"
-            }],
-        "global_merge_vars":dynamicContent,
-        "inline_css":true,
-        "subject":subject
-    };   
+        to: [{
+            email: email,
+            name: userName
+        }],
+        headers: {
+            'X-MC-AutoText': 1
+        },
+        global_merge_vars: dynamicContent,
+        inline_css: true,
+        subject: subject,
+        from_email: 'no-reply@pushpigeon.com',
+        from_name: 'Push Pigeon',
+    };
 
-	Parse.Cloud.httpRequest({
-	    method: 'POST',
-	    headers: {
-	     'Content-Type': 'application/json',
-	    },
-	    url: 'https://mandrillapp.com/api/1.0/messages/send-template.json',
-	    body:{
-	        "key": "6xcQtzv5ZIhr3bZ_F8tbiw",
-	        "template_name": templateName,
-	        "template_content": dynamicContent, 
-	        "message":message,
-	        "async": true
-	    },
-
-	    success: function(httpResponse) {
-	       console.log(httpResponse);
-	       promise.resolve(httpResponse);
-	    },
+    Mandrill.sendTemplate({
+        message: message,
+        template_name: templateName,
+        template_content: dynamicContent,
+        async: true
+    }, {
+        success: function(httpResponse) {
+            console.log(httpResponse);
+            promise.resolve(httpResponse);
+        },
         error: function(httpResponse) {
-           console.error(httpResponse);
-           promise.reject(httpResponse);
+            console.error(httpResponse);
+            promise.reject(httpResponse);
         }
+    });
 
-	});
-	
-	return promise;
+    return promise;
 };
 
-exports.sendContactMessage = function(name, email, phone, message){
-	var promise = new Parse.Promise();
+exports.sendEmail = sendEmail;
 
-	Parse.Config
+exports.sendContactMessage = function(name, email, phone, message) {
+    var promise = new Parse.Promise();
+
+    Parse.Config
         .get()
         .then(function(config) {
             var e = config.get("contactEmail");
@@ -161,21 +161,19 @@ exports.sendContactMessage = function(name, email, phone, message){
                 message: {
                     subject: "New contact message in PushPigeon",
                     from_email: 'no-reply@pushpigeon.com',
-                    from_name: 'PushPigeon Contact',
+                    from_name: 'Push Pigeon',
                     html: '<h4>From: ' + name + ' ( ' + email + ')</h4><h4>Phone Number: ' + phone + '</h4><h4>Message:</h4><p>' + message + '</p>',
                     text: 'From: ' + name + ' ( ' + email + ')\n\nPhone Number: ' + phone + '\n\n Message: ' + message,
-                    to: [
-                        {
-                            email: e,
-                            name: 'PushPigeon'
-                        }
-                    ],
+                    to: [{
+                        email: e,
+                        name: 'Push Pigeon'
+                    }],
                     headers: {
                         'Reply-To': email
                     }
                 },
                 async: true
-            },{
+            }, {
                 success: function(httpResponse) {
                     console.log(httpResponse);
                     promise.resolve(httpResponse)
@@ -186,47 +184,45 @@ exports.sendContactMessage = function(name, email, phone, message){
                 }
             });
         }, function(error) {
-        	console.log(error);
+            console.log(error);
             promise.reject(error);
         });
-	
-	return promise;
+
+    return promise;
 };
 
-exports.sendVerificationCode = function(email, code, template){
-  var promise = new Parse.Promise();
+exports.sendVerificationCode = function(email, code, template) {
+    var promise = new Parse.Promise();
 
-  template = template || 'VerificationCode';//Default template
+    template = template || 'VerificationCode'; //Default template
 
-  Mandrill.sendTemplate({
-      message: {
-          to: [
-              {
-                  email: email
-              }
-          ],
-          headers: {
-            'Reply-To': 'support@pushpigeon.com'
-          }
-      },
-      template_name: template,
-      template_content: [
-          {
+    Mandrill.sendTemplate({
+        message: {
+            to: [{
+                email: email
+            }],
+            from_email: 'no-reply@pushpigeon.com',
+            from_name: 'Push Pigeon',
+            headers: {
+                'Reply-To': 'contact@pushpigeon.com'
+            }
+        },
+        template_name: template,
+        template_content: [{
             name: 'verificationCode',
             content: code
-          }
-      ],
-      async: true
-  },{
-      success: function(httpResponse) {
-          console.log(httpResponse);
-          promise.resolve(httpResponse)
-      },
-      error: function(httpResponse) {
-          console.error(httpResponse);
-          promise.reject(httpResponse);
-      }
-  });
-  
-  return promise;
+        }],
+        async: true
+    }, {
+        success: function(httpResponse) {
+            console.log(httpResponse);
+            promise.resolve(httpResponse)
+        },
+        error: function(httpResponse) {
+            console.error(httpResponse);
+            promise.reject(httpResponse);
+        }
+    });
+
+    return promise;
 }

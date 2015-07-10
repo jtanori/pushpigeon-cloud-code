@@ -2,18 +2,15 @@ var moment = require('moment');
 var _ = require('underscore');
 
 
-Parse.Cloud.beforeSave('Notification', function(request, response){
-	if(!request.object.existed()){
-		var object = request.object;
-		var scheduled = object.get('schedule_time');
-		var createdAt = object.get('createdAt');
-
-		if(_.isEmpty(scheduled)){
-			object.set('schedule_time', createdAt);
-		}
+Parse.Cloud.afterSave('Notification', function(request){
+	if(request.object.existed()){
+		return;
 	}
-
-	response.success();
+	var data = request.object.toJSON();
+	
+	if(_.isEmpty(data.schedule_time)){
+		request.object.set('schedule_time', new Date()).save();
+	}
 });
 
 //Send instant notification

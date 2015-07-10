@@ -76,8 +76,9 @@ Parse.Cloud.define("emailUserApproved", function(request, response) {
 		var username=request.params.username;
 		var email=request.params.email;
 		var userType=request.params.userType;
+		var groupName = request.params.groupName;
 
-	    mandrilServices.emailUserApproved(username,email,userType)
+	    mandrilServices.emailUserApproved(username,email,userType,groupName)
 	   	.then(function(result){                                    
 		   response.success(result);	 
 		},function(error){
