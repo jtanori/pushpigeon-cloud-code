@@ -82,7 +82,7 @@ Parse.Cloud.afterSave('Group', function(request){
 	    }];
 
 		mandrillServices
-			.sendEmail(username, email, 'AccountUpdated', templateVars, 'Your account has been updated.')
+			.sendEmail(username, email, 'AccountUpdated', templateVars, 'Your account has been updated.',  {'X-MC-AutoText': true})
 			.then(function(){
 				console.log('AccountUpdated email sent for Group: ' + request.object.id);
 			})
@@ -225,7 +225,7 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 
 												    if(!isForgot){
 													    mandrillServices
-															.sendEmail(username, email, template, templateVars, 'Welcome to Push Pigeon')
+															.sendEmail(username, email, template, templateVars, 'Welcome to Push Pigeon', {'X-MC-Important': true})
 															.then(function(){
 																console.log('Wecome email sent for User: ' + user.id);
 																response.success({status: 'success', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
@@ -257,7 +257,7 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 
 										if(!isForgot){
 											mandrillServices
-												.sendEmail(username, email, template, templateVars, 'Welcome to Push Pigeon')
+												.sendEmail(username, email, template, templateVars, 'Welcome to Push Pigeon', {'X-MC-Important': true})
 												.then(function(){
 													console.log('Wecome email sent for User: ' + user.id);
 													response.success({status: 'success', verificationCode: {id: c.id, verified: true, type: c.get('type')}});
@@ -433,7 +433,7 @@ Parse.Cloud.define('requestVerification', function(request, response){
 });
 
 Parse.Cloud.define('sendInvitationEmail', function(request, response){
-	if(request.params && request.params.id){
+	if(request.params && request.params.id && request.params.adminName && request.params.adminLastName && request.params.memberName){
 		var GroupMemberLink = Parse.Object.extend('GroupMemberLink');
 		var linkQuery = new Parse.Query(GroupMemberLink);
 		var groupname, membername, username, email, templateVars = [];
@@ -443,17 +443,16 @@ Parse.Cloud.define('sendInvitationEmail', function(request, response){
 			.include('member')
 			.get(request.params.id)
 			.then(function(l){
-				username = l.get('member').get('member_first_name');
 				groupname = l.get('group').get('group_name');
-				membername = l.get('group').get('firstname') + ' ' + l.get('group').get('lastname');
+				username = l.get('group').get('firstname');
 				email = l.get('member').get('member_email');
 
-				templateVars.push({name: 'username', content: username});
-				templateVars.push({name: 'membername', content: membername});
+				templateVars.push({name: 'username', content: request.params.memberName});
+				templateVars.push({name: 'admin', content: request.params.adminName + ' ' + request.params.adminLastName});
 	    		templateVars.push({name: 'groupname', content: groupname});
 
 				mandrillServices
-					.sendEmail(username, email, 'MemberInvited', templateVars, username + ' had added you to ' + groupname + ' on Push Pigeon')
+					.sendEmail(request.params.memberName, email, 'MemberInvited', templateVars, request.params.adminName + ' ' + request.params.adminLastName + ' had added you to ' + groupname + ' on Push Pigeon')
 					.then(function(){
 						console.log('MemberInvited email sent for GroupMemberLink: ' + request.params.id);
 						response.success('success');
@@ -461,12 +460,36 @@ Parse.Cloud.define('sendInvitationEmail', function(request, response){
 					.fail(function(e){
 						console.log('MemberInvited email not sent for GroupMemberLink: ' + request.params.id);
 						console.log(e);
-						responser.error(e);
+						response.error(e);
 					});
 			})
 			.fail(function(e){
 				console.log(e);
-				responser.error('Could not find GroupMemberLink: ' + request.params.id);
+				response.error('Could not find GroupMemberLink: ' + request.params.id);
+			});
+	}else{
+		response.error('Invalid input');
+	}
+});
+
+Parse.Cloud.define('sendRevokeEmail', function(request, response){
+	if(request.params && request.params.id && request.params.adminName && request.params.adminLastName && request.params.memberName){
+		var templateVars = [];
+
+		templateVars.push({name: 'username', content: request.params.memberName});
+		templateVars.push({name: 'admin', content: request.params.adminName + ' ' + request.params.adminLastName});
+		templateVars.push({name: 'groupname', content: request.params.groupName});
+
+		mandrillServices
+			.sendEmail(request.params.memberName, request.params.memberEmail, 'MemberRemoved', templateVars, request.params.adminName + ' ' + request.params.adminLastName + ' had removed you from ' + request.params.groupName + ' on Push Pigeon')
+			.then(function(){
+				console.log('MemberInvited email sent for GroupMemberLink: ' + request.params.id);
+				response.success('success');
+			})
+			.fail(function(e){
+				console.log('MemberInvited email not sent for GroupMemberLink: ' + request.params.id);
+				console.log(e);
+				response.error(e);
 			});
 	}else{
 		response.error('Invalid input');
@@ -474,37 +497,136 @@ Parse.Cloud.define('sendInvitationEmail', function(request, response){
 });
 
 Parse.Cloud.define('sendNewAdminAddedEmail', function(request, response){
-	if(request.params && request.params.to && request.params.memberName && request.params.groupName && request.params.adminName){
+	if(request.params && request.params.adminEmail && request.params.memberName && request.params.groupName && request.params.adminName && request.params.adminLastName){
 		var templateVars = [];
 
 		templateVars.push({name: 'username', content: request.params.adminName});
-		templateVars.push({name: 'membername', content: request.params.memberName});
+		templateVars.push({name: 'membername', content: request.params.memberName + ' ' + request.params.memberLastName});
 		templateVars.push({name: 'groupname', content: request.params.groupName});
 		//TODO: Fix this one, multiple recipients should be in a single call
 		mandrillServices
-			.sendEmail(request.params.adminName, request.params.to, 'AdminCreated', templateVars, request.params.adminName + ' has added you to ' + request.params.membrName + ' on Push Pigeon')
+			.sendEmail(request.params.adminName, request.params.adminEmail, 'AdminCreated', templateVars, 'New admin confirmation')
 			.then(function(){
-				console.log('AdminCreated email sent to: ' + request.params.to);
+				console.log('AdminCreated email sent to: ' + request.params.adminEmail);
 				response.success('success');
 			})
 			.fail(function(e){
-				console.log('AdminCreated email not sent to: ' + request.params.to);
+				console.log('AdminCreated email not sent to: ' + request.params.adminEmail);
 				console.log(e);
-				responser.error(e);
+				response.error(e);
 			});
 
 		mandrillServices
-			.sendEmail(request.params.adminName, request.params.memberEmail, 'AdminCreated', templateVars, request.params.adminName + ' has added you to ' + request.params.membrName + ' on Push Pigeon')
+			.sendEmail(request.params.memberName, request.params.memberEmail, 'NewAdmin', templateVars, request.params.adminName + ' ' + request.params.adminLastName + ' has added you as an Admin')
 			.then(function(){
-				console.log('AdminCreated email sent to: ' + request.params.to);
+				console.log('AdminCreated email sent to: ' + request.params.memberEmail);
 				response.success('success');
 			})
 			.fail(function(e){
-				console.log('AdminCreated email not sent to: ' + request.params.to);
+				console.log('AdminCreated email not sent to: ' + request.params.memberEmail);
 				console.log(e);
-				responser.error(e);
+				response.error(e);
 			});
 	}else{
 		response.error('Invalid input');
+	}
+});
+
+Parse.Cloud.define('sendGroupInvitationEmail', function(request, response){
+	if(request.params && request.params.contactEmail && request.params.contactName && request.params.groupName && request.params.memberEmail && request.params.memberName && request.params.memberId){
+		var templateVars = [];
+		var InviteGroup = Parse.Object.extend('InviteGroup');
+		var inviteGroup = new InviteGroup();
+
+		templateVars.push({name: 'username', content: request.params.contactName.split(' ')[0]});
+		templateVars.push({name: 'membername', content: request.params.memberName || 'Push Pigeon'});
+		templateVars.push({name: 'groupname', content: request.params.groupName});
+		
+		inviteGroup.save({
+			contact_email: request.params.contactEmail,
+			contact_person: request.params.contactName,
+			contact_phone: request.params.contactPhoneNumber || '',
+			name: request.params.groupName,
+			state: request.params.state || ''
+		})
+		.then(function(){
+			//TODO: Fix this one, multiple recipients should be in a single call
+			mandrillServices
+				.sendEmail(request.params.contactName.split(' ')[0], request.params.contactEmail, 'GroupInvitedFromApp', templateVars, request.params.memberName + ' wants you to join Push Pigeon!')
+				.then(function(){
+					console.log('GroupInvitedFromApp email sent to: ' + request.params.contactEmail);
+					response.success('success');
+				})
+				.fail(function(e){
+					console.log('GroupInvitedFromApp email not sent to: ' + request.params.contactEmail);
+					console.log(e);
+					response.error(e);
+				});
+		})
+		.fail(function(e){
+			response.error(e);
+		});
+	}else{
+		response.error('Invalid input');
+	}
+});
+
+Parse.Cloud.define('requestRemovalFromGroup', function(request, response){
+	if(request.params && request.params.groupId && request.params.memberName && request.params.memberEmail){
+		var templateVars = [];
+		var GroupAdmin = Parse.Object.extend('GroupAdmin');
+		var Group = Parse.Object.extend('Group');
+		var query = new Parse.Query(GroupAdmin);
+
+		query
+			.equalTo('group', (new Group({id: request.params.groupId})))
+			.equalTo('isprimary', true)
+			.include('group')
+			.select(['firstname', 'email', 'group'])
+			.find(function(admins){
+				if(admins.length){
+					console.log(admins);
+					_.each(admins, function(admin){
+
+						templateVars = [
+							{
+								name: 'membername',
+								content: request.params.memberName
+							},
+							{
+								name: 'memberemail',
+								content: request.params.memberEmail
+							},
+							{
+								name: 'groupname',
+								content: admin.get('group').get('group_name')
+							},
+							{
+								name: 'admin',
+								content: admin.get('firstname')
+							}
+						];
+						
+						mandrillServices
+							.sendEmail(admin.get('firstname'), admin.get('email'), 'RemovalRequest', templateVars, 'Please remove ' + request.params.memberName + ' from your Group', {'X-MC-AutoText': true})
+							.then(function(){
+								console.log('RemovalRequest email sent to: ' + admin.get('email'));
+							})
+							.fail(function(e){
+								console.log('RemovalRequest email not sent to: ' + admin.get('email'));
+								console.log(e);
+							});
+					});
+
+					response.success('Email sent');
+				}else{
+					console.log('No admin found for group, weird!');
+					response.error('No admin found for group.')
+				}
+			}).fail(function(e){
+				response.error(e);
+			});
+	}else{
+		response.erro('Invalid input');
 	}
 });

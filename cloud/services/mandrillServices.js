@@ -109,18 +109,18 @@ exports.emailAdminCreated = function(username, email) {
     return promise;
 };
 
-var sendEmail = function(userName, email, templateName, dynamicContent, subject) {
+var sendEmail = function(userName, email, templateName, dynamicContent, subject, headers) {
 
     var promise = new Parse.Promise();
+
+    headers = _.extend({'X-MC-AutoText': 1}, headers || {});
 
     var message = {
         to: [{
             email: email,
             name: userName
         }],
-        headers: {
-            'X-MC-AutoText': 1
-        },
+        headers: headers,
         global_merge_vars: dynamicContent,
         inline_css: true,
         subject: subject,
@@ -204,7 +204,8 @@ exports.sendVerificationCode = function(email, code, template) {
             from_email: 'no-reply@pushpigeon.com',
             from_name: 'Push Pigeon',
             headers: {
-                'Reply-To': 'contact@pushpigeon.com'
+                'Reply-To': 'contact@pushpigeon.com',
+                'X-MC-Important': true
             }
         },
         template_name: template,
