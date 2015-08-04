@@ -555,7 +555,7 @@ Parse.Cloud.define('sendGroupInvitationEmail', function(request, response){
 				.sendEmail(request.params.contactName.split(' ')[0], request.params.contactEmail, 'GroupInvitedFromApp', templateVars, request.params.memberName + ' wants you to join Push Pigeon!')
 				.then(function(){
 					console.log('GroupInvitedFromApp email sent to: ' + request.params.contactEmail);
-					response.success('success');
+					response.success('Your invite has been sent');
 				})
 				.fail(function(e){
 					console.log('GroupInvitedFromApp email not sent to: ' + request.params.contactEmail);
