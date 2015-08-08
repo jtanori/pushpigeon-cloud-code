@@ -207,7 +207,8 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 									var email = user.get('email');
 									var username;
 									var templateVars = [];
-									var template = user.get('initial') ? 'GroupWelcome' : 'Welcome';
+									var isInitial = user.get('initial'); //Means if group is just being created
+									var template = isInitial ? 'GroupWelcome' : 'Welcome';
 									var Member = Parse.Object.extend('Member');
 									var memberQuery = new Parse.Query(Member);
 
@@ -255,7 +256,7 @@ Parse.Cloud.define('verifyAccount', function(request, response){
 									    //Set initial flag as false
 									    user.save('initial', false);
 
-										if(!isForgot){
+										if(!isForgot && isInitial){
 											mandrillServices
 												.sendEmail(username, email, template, templateVars, 'Welcome to Push Pigeon', {'X-MC-Important': true})
 												.then(function(){
