@@ -5,6 +5,7 @@ var validations = require('cloud/validations.js');
 
 require('cloud/routes/emails.js');
 require('cloud/routes/notifications.js');
+require('cloud/routes/members.js');
 
 Parse.Cloud.afterSave(Parse.User, function(req){
 	if(req.object.existed()){
@@ -70,6 +71,33 @@ Parse.Cloud.afterSave('GroupAdmin', function(req){
 		.fail(function(){
 			console.log('VerificationCode could not be saved for GroupAdmin: ' + req.object.id);
 		});
+});
+
+Parse.Cloud.afterSave('Member', function(request){
+	console.log('new member created');
+	console.log(request.object);
+	
+	if(!request.object.existed() && request.object.get('member_registered_via') === 'facebook'){
+		console.log('new member via facebook');
+		console.log(request.object.id, request.object.get('user_id'));
+
+		var username = request.object.get('member_first_name');
+		var email = request.object.get('member_email');
+		var templateVars = [{
+			"name": "username",
+	        "content": username
+		}];
+
+		mandrillServices
+			.sendEmail(username, email, 'Welcome', templateVars, 'Welcome to Push Pigeon', {'X-MC-Important': true})
+			.then(function(){
+				console.log('Wecome facebook email sent for User: ' + request.object.id);
+			})
+			.fail(function(e){
+				console.log('Welcome facebook email not sent for User: ' + request.object.id);
+				console.log(e);
+			});
+	}
 });
 
 Parse.Cloud.afterSave('Group', function(request){
@@ -612,14 +640,14 @@ Parse.Cloud.define('requestRemovalFromGroup', function(request, response){
 							.sendEmail(admin.get('firstname'), admin.get('email'), 'RemovalRequest', templateVars, 'Please remove ' + request.params.memberName + ' from your Group', {'X-MC-AutoText': true})
 							.then(function(){
 								console.log('RemovalRequest email sent to: ' + admin.get('email'));
+								response.success('Email sent');
 							})
 							.fail(function(e){
 								console.log('RemovalRequest email not sent to: ' + admin.get('email'));
 								console.log(e);
+								response.error(e);
 							});
 					});
-
-					response.success('Email sent');
 				}else{
 					console.log('No admin found for group, weird!');
 					response.error('No admin found for group.')
@@ -629,5 +657,80 @@ Parse.Cloud.define('requestRemovalFromGroup', function(request, response){
 			});
 	}else{
 		response.erro('Invalid input');
+	}
+});
+
+Parse.Cloud.afterSave('GroupMemberLink', function(req){
+	if(!req.object.existed()){
+		var status = req.object.get('group_request_status');
+
+		status
+			.fetch()
+			.then(function(s){
+				if(s && s.get('status_name') === 'Pending'){
+					return Parse.Promise.when([req.object.get('group').fetch(), req.object.get('member').fetch()]);
+				}else{
+					console.log('Status name: ' + s.get('status_name'));
+					console.log(s);
+					console.log('halting execution afterSave GroupMemberLink');
+				}
+			}, function(e){
+				console.log('Error afterSave GroupMemberLink');
+				console.log(e);
+			})
+			.then(function(g, m){
+				var GroupAdmin = Parse.Object.extend('GroupAdmin');
+				var query = new Parse.Query(GroupAdmin);
+				var templateVars;
+
+				query
+					.equalTo('group', g)
+					.equalTo('isprimary', true)
+					.include('group')
+					.select(['firstname', 'email', 'group'])
+					.find(function(admins){
+						if(admins.length){
+							_.each(admins, function(admin){
+
+								templateVars = [
+									{
+										name: 'membername',
+										content: req.object.get('member').get('member_first_name') + ' ' + req.object.get('member').get('member_last_name')
+									},
+									{
+										name: 'memberemail',
+										content: req.object.get('member').get('email')
+									},
+									{
+										name: 'groupname',
+										content: admin.get('group').get('group_name')
+									},
+									{
+										name: 'admin',
+										content: admin.get('firstname')
+									}
+								];
+
+								mandrillServices
+									.sendEmail(admin.get('firstname'), admin.get('email'), 'GroupJoinRequest', templateVars, req.object.get('member').get('member_first_name') + ' has requested to join your Group', {'X-MC-AutoText': true})
+									.then(function(){
+										console.log('GroupJoinRequest email sent to: ' + admin.get('email'));
+									})
+									.fail(function(e){
+										console.log('GroupJoinRequest email not sent to: ' + admin.get('email'));
+										console.log(e);
+									});
+							});
+						}else{
+							console.log('No admin found for group, weird!');
+							response.error('No admin found for group.')
+						}
+					}).fail(function(e){
+						response.error(e);
+					});
+			}, function(e){
+				console.log('Error afterSave GroupMemberLink');
+				console.log(e);
+			});
 	}
 });

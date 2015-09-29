@@ -3,13 +3,19 @@
     "parseVersion": "1.4.2"
   },
   "applications": {
+    "Pushpigeon_Dev": {
+      "applicationId": "hmlDvaBUXKKvpNrlfN43UBHzGjUXKz6hdKhmsdxC",
+      "masterKey": "JYLwdgvDgH5Zz66XEIQCCxdZtAeUkQBUZYJnGziC"
+    },
     "_default": {
-      "link": "pushpigeon"
+      "link": "stage"
     },
     "pushpigeon": {
       "applicationId": "4Wq91UfyUxn9DiQ93KNqM8fI86WijyMEYilZT5XB",
-      "javascriptKey": "GN7wDUPelJY8NUHDHw4LWwPxFl4KRojlpbSXsSmk",
       "masterKey": "VVgrgdszC7Ufs3spv4WV8uKGCnWVWEp6MLvnfWk0"
+    },
+    "stage": {
+      "link": "Pushpigeon_Dev"
     }
   }
 }
